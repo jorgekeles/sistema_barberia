@@ -222,6 +222,15 @@ export default function DashboardPage() {
     }
   }
 
+  async function refreshUpcomingAppointments(currentToken: string) {
+    const res = await fetch("/api/v1/businesses/me/appointments", {
+      headers: { Authorization: `Bearer ${currentToken}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    setAppointments(data.appointments ?? []);
+  }
+
   useEffect(() => {
     const saved = localStorage.getItem("access_token");
     if (!saved) {
@@ -280,6 +289,25 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, [token, revenuePeriod, router]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    const tick = async () => {
+      if (cancelled) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      await refreshUpcomingAppointments(token);
+    };
+
+    const interval = window.setInterval(tick, 8000);
+    tick();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [token]);
 
   async function createService(e: FormEvent) {
     e.preventDefault();
