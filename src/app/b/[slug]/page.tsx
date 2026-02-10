@@ -88,8 +88,8 @@ export default function PublicBookingPage() {
   const [staff, setStaff] = useState<PublicStaff[]>([]);
   const [serviceId, setServiceId] = useState("");
   const [staffId, setStaffId] = useState("");
-  const [fromDate, setFromDate] = useState(toDateInput(new Date()));
-  const [toDate, setToDate] = useState(toDateInput(addDays(new Date(), 7)));
+  const [selectedDate, setSelectedDate] = useState(toDateInput(new Date()));
+  const [searchMode, setSearchMode] = useState<"date" | "nearest">("date");
   const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string>("");
 
@@ -131,16 +131,15 @@ export default function PublicBookingPage() {
       .finally(() => setLoading(false));
   }, [slug]);
 
-  async function searchSlots(options?: { keepMessage?: boolean }) {
+  async function searchSlots(options?: { keepMessage?: boolean; mode?: "date" | "nearest" }) {
     if (!slug || !serviceId) return;
     setError("");
     if (!options?.keepMessage) setMessage("");
+    const mode = options?.mode ?? searchMode;
 
-    const query = new URLSearchParams({
-      from: fromDate,
-      to: toDate,
-      service_id: serviceId,
-    });
+    const from = mode === "date" ? selectedDate : toDateInput(new Date());
+    const to = mode === "date" ? toDateInput(addDays(new Date(`${selectedDate}T00:00:00`), 1)) : toDateInput(addDays(new Date(), 30));
+    const query = new URLSearchParams({ from, to, service_id: serviceId });
 
     if (staffId) query.set("staff_user_id", staffId);
 
@@ -151,7 +150,16 @@ export default function PublicBookingPage() {
       return;
     }
 
-    setSlots(data.slots ?? []);
+    const incomingSlots = (data.slots ?? []) as Slot[];
+    if (mode === "nearest") {
+      const nowTs = Date.now();
+      const closest = incomingSlots
+        .filter((s) => new Date(s.start_at).getTime() >= nowTs)
+        .slice(0, 3);
+      setSlots(closest);
+    } else {
+      setSlots(incomingSlots);
+    }
     setSelectedSlot("");
   }
 
@@ -326,19 +334,36 @@ export default function PublicBookingPage() {
           </label>
 
           <label>
-            Desde
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          </label>
-
-          <label>
-            Hasta
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+            Fecha
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              disabled={searchMode === "nearest"}
+            />
           </label>
         </div>
 
-        <div className="cta-row">
-          <button onClick={() => searchSlots()} disabled={loading || !serviceId}>
-            {loading ? "Buscando..." : "Buscar disponibilidad"}
+        <div className="cta-row row-actions">
+          <button
+            onClick={() => {
+              setSearchMode("date");
+              searchSlots({ mode: "date" });
+            }}
+            disabled={loading || !serviceId}
+            className={searchMode === "date" ? "" : "btn-ghost"}
+          >
+            {loading && searchMode === "date" ? "Buscando..." : "Buscar por fecha"}
+          </button>
+          <button
+            onClick={() => {
+              setSearchMode("nearest");
+              searchSlots({ mode: "nearest" });
+            }}
+            disabled={loading || !serviceId}
+            className={searchMode === "nearest" ? "" : "btn-ghost"}
+          >
+            {loading && searchMode === "nearest" ? "Buscando..." : "Buscar turno más próximo"}
           </button>
         </div>
         {selectedService ? (
@@ -356,7 +381,13 @@ export default function PublicBookingPage() {
           <h2>Horarios disponibles</h2>
           <small>Selecciona el turno que mejor te quede.</small>
         </div>
-        {slots.length === 0 ? <p>No hay horarios disponibles para ese rango. Prueba con otras fechas.</p> : null}
+        {slots.length === 0 ? (
+          <p>
+            {searchMode === "nearest"
+              ? "No encontramos turnos cercanos ahora. Intenta con otra fecha."
+              : "No hay horarios disponibles para esa fecha."}
+          </p>
+        ) : null}
         <div className="slot-grid slots-scroll">
           {slots.map((slot) => {
             const label = new Date(slot.start_at).toLocaleString();
