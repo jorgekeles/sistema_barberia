@@ -14,6 +14,16 @@ type LoginRes = {
   expires_in: number;
 };
 
+async function parseApiBodySafe<T>(res: Response): Promise<T | null> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+}
+
 export default function HomePage() {
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>("login");
@@ -38,9 +48,12 @@ export default function HomePage() {
       body: JSON.stringify({ email: loginEmail, password: loginPassword }),
     });
 
-    const loginData = (await loginRes.json()) as LoginRes & ApiError;
+    const loginData = ((await parseApiBodySafe<LoginRes & ApiError>(loginRes)) ?? {}) as Partial<LoginRes> & ApiError;
     if (!loginRes.ok || !loginData.access_token) {
-      throw new Error(loginData.error?.message ?? "No se pudo iniciar sesion");
+      throw new Error(loginData.error?.message ?? `No se pudo iniciar sesion (HTTP ${loginRes.status})`);
+    }
+    if (!loginData.refresh_token) {
+      throw new Error("No se pudo iniciar sesion (refresh token faltante)");
     }
 
     localStorage.setItem("access_token", loginData.access_token);
@@ -81,8 +94,8 @@ export default function HomePage() {
         }),
       });
 
-      const data = (await res.json()) as ApiError;
-      if (!res.ok) throw new Error(data.error?.message ?? "No se pudo crear la cuenta");
+      const data = (await parseApiBodySafe<ApiError>(res)) ?? {};
+      if (!res.ok) throw new Error(data.error?.message ?? `No se pudo crear la cuenta (HTTP ${res.status})`);
 
       await loginWithCredentials(email, password);
       router.push("/dashboard");
