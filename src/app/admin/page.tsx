@@ -19,6 +19,7 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
   const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
+  const [workingTenantId, setWorkingTenantId] = useState("");
 
   async function loadOverview() {
     const res = await fetch("/api/v1/admin/overview", { cache: "no-store" });
@@ -63,6 +64,36 @@ export default function AdminPage() {
     setBusinesses([]);
   }
 
+  async function cancelSubscription(tenantId: string) {
+    const ok = window.confirm("Cancelar la suscripción de este negocio?");
+    if (!ok) return;
+    setWorkingTenantId(tenantId);
+    setError("");
+    const res = await fetch(`/api/v1/admin/businesses/${tenantId}/cancel-subscription`, { method: "POST" });
+    setWorkingTenantId("");
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+      setError(data?.error?.message ?? "No se pudo cancelar suscripción");
+      return;
+    }
+    await loadOverview();
+  }
+
+  async function deleteBusiness(tenantId: string, name: string) {
+    const ok = window.confirm(`Eliminar negocio "${name}"? Esta acción lo desactiva del sistema.`);
+    if (!ok) return;
+    setWorkingTenantId(tenantId);
+    setError("");
+    const res = await fetch(`/api/v1/admin/businesses/${tenantId}`, { method: "DELETE" });
+    setWorkingTenantId("");
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+      setError(data?.error?.message ?? "No se pudo eliminar negocio");
+      return;
+    }
+    await loadOverview();
+  }
+
   return (
     <main className="container">
       <section className="card surface">
@@ -97,6 +128,7 @@ export default function AdminPage() {
                     <th style={{ textAlign: "left", padding: "0.55rem", borderBottom: "1px solid #d9d0bf" }}>Turnos reservados</th>
                     <th style={{ textAlign: "left", padding: "0.55rem", borderBottom: "1px solid #d9d0bf" }}>Suscripción</th>
                     <th style={{ textAlign: "left", padding: "0.55rem", borderBottom: "1px solid #d9d0bf" }}>Estado</th>
+                    <th style={{ textAlign: "left", padding: "0.55rem", borderBottom: "1px solid #d9d0bf" }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -107,6 +139,25 @@ export default function AdminPage() {
                       <td style={{ padding: "0.55rem", borderBottom: "1px solid #eee7d9" }}>{b.reserved_count}</td>
                       <td style={{ padding: "0.55rem", borderBottom: "1px solid #eee7d9" }}>{b.subscription_type}</td>
                       <td style={{ padding: "0.55rem", borderBottom: "1px solid #eee7d9" }}>{b.subscription_status}</td>
+                      <td style={{ padding: "0.55rem", borderBottom: "1px solid #eee7d9" }}>
+                        <div className="row-actions">
+                          <button
+                            type="button"
+                            className="btn-ghost"
+                            disabled={workingTenantId === b.tenant_id}
+                            onClick={() => cancelSubscription(b.tenant_id)}
+                          >
+                            Cancelar suscripción
+                          </button>
+                          <button
+                            type="button"
+                            disabled={workingTenantId === b.tenant_id}
+                            onClick={() => deleteBusiness(b.tenant_id, b.name)}
+                          >
+                            Eliminar negocio
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
