@@ -14,6 +14,23 @@ type LoginRes = {
   expires_in: number;
 };
 
+const COUNTRY_OPTIONS = [
+  { code: "AR", name: "Argentina" },
+  { code: "UY", name: "Uruguay" },
+  { code: "CL", name: "Chile" },
+  { code: "BR", name: "Brasil" },
+  { code: "PY", name: "Paraguay" },
+  { code: "BO", name: "Bolivia" },
+  { code: "PE", name: "Perú" },
+  { code: "CO", name: "Colombia" },
+  { code: "EC", name: "Ecuador" },
+  { code: "VE", name: "Venezuela" },
+  { code: "MX", name: "México" },
+  { code: "US", name: "Estados Unidos" },
+  { code: "CA", name: "Canadá" },
+  { code: "ES", name: "España" },
+];
+
 async function parseApiBodySafe<T>(res: Response): Promise<T | null> {
   const text = await res.text();
   if (!text) return null;
@@ -36,7 +53,6 @@ export default function HomePage() {
   const [ownerName, setOwnerName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [slug, setSlug] = useState("");
-  const [timezone, setTimezone] = useState("America/Argentina/Buenos_Aires");
   const [countryCode, setCountryCode] = useState("AR");
 
   const title = useMemo(() => (mode === "login" ? "Acceso de propietarios" : "Crea tu cuenta"), [mode]);
@@ -89,7 +105,6 @@ export default function HomePage() {
           owner_password: password,
           business_name: businessName,
           slug: slug || undefined,
-          timezone,
           country_code: countryCode,
         }),
       });
@@ -154,12 +169,14 @@ export default function HomePage() {
               </label>
               <div className="grid-form compact">
                 <label>
-                  Timezone
-                  <input value={timezone} onChange={(e) => setTimezone(e.target.value)} required />
-                </label>
-                <label>
-                  Pais (2 letras)
-                  <input value={countryCode} onChange={(e) => setCountryCode(e.target.value.toUpperCase())} required maxLength={2} />
+                  País
+                  <select value={countryCode} onChange={(e) => setCountryCode(e.target.value)} required>
+                    {COUNTRY_OPTIONS.map((country) => (
+                      <option key={country.code} value={country.code}>
+                        {country.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
             </>

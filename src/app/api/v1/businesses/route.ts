@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { pool } from "@/lib/db";
 import { jsonError, jsonOk } from "@/lib/http";
+import { deriveTimezoneFromCountry } from "@/lib/timezone";
 
 const createBusinessSchema = z.object({
   owner_name: z.string().min(2).max(120),
@@ -14,7 +15,7 @@ const createBusinessSchema = z.object({
     .max(50)
     .regex(/^[a-z0-9-]+$/)
     .optional(),
-  timezone: z.string().min(3).max(80).default("America/Argentina/Buenos_Aires"),
+  timezone: z.string().min(3).max(80).optional(),
   country_code: z.string().length(2).default("AR"),
 });
 
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return jsonError("VALIDATION_ERROR", parsed.error.message, 400);
 
   const data = parsed.data;
+  const derivedTimezone = data.timezone ?? deriveTimezoneFromCountry(data.country_code);
   const slugBase = data.slug ?? slugify(data.business_name);
   const slug = slugBase || `barberia-${Math.floor(Math.random() * 100000)}`;
 
@@ -57,10 +59,10 @@ export async function POST(req: NextRequest) {
     const business = await client.query(
       `
         INSERT INTO businesses (tenant_id, name, slug, timezone, country_code)
-        VALUES (gen_random_uuid(), $1, $2, $3, upper($4))
-        RETURNING id, tenant_id, name, slug, timezone, country_code, trial_starts_at, trial_ends_at
+      VALUES (gen_random_uuid(), $1, $2, $3, upper($4))
+      RETURNING id, tenant_id, name, slug, timezone, country_code, trial_starts_at, trial_ends_at
       `,
-      [data.business_name, slug, data.timezone, data.country_code],
+      [data.business_name, slug, derivedTimezone, data.country_code],
     );
 
     const tenantId = business.rows[0].tenant_id;
