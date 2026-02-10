@@ -22,6 +22,8 @@ const envSchema = z.object({
   WHATSAPP_ENABLED: z.coerce.boolean().optional(),
   WHATSAPP_API_TOKEN: z.string().optional(),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  ADMIN_PANEL_USERNAME: z.string().optional(),
+  ADMIN_PANEL_PASSWORD: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
