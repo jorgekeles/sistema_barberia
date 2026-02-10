@@ -188,6 +188,8 @@ export default function PublicBookingPage() {
     setManageScheduledAtLocal(isoToLocalDateTimeInput(data.scheduled_start_at ?? selectedSlot));
     setManagePhone(customerPhone);
     setSelectedAppointmentId(data.appointment_id);
+    setCustomerName("");
+    setCustomerPhone("");
     setSelectedSlot("");
     requestAnimationFrame(() => {
       confirmationRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -386,7 +388,10 @@ export default function PublicBookingPage() {
             <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} required minLength={8} />
           </label>
           <p>
-            Horario elegido: <strong>{selectedSlot ? new Date(selectedSlot).toLocaleString() : "ninguno"}</strong>
+            Horario elegido:{" "}
+            <strong>
+              {selectedSlot ? new Date(selectedSlot).toLocaleString() : "Selecciona un horario disponible"}
+            </strong>
           </p>
           <button type="submit" disabled={!selectedSlot || !serviceId || !customerName || !customerPhone}>Confirmar turno</button>
         </form>
