@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
 type PublicService = {
@@ -36,6 +36,16 @@ type CreateAppointmentResponse = {
   scheduled_start_at?: string;
   whatsapp_notification_sent?: boolean;
   whatsapp_reason?: string | null;
+};
+
+type LookupAppointment = {
+  appointment_id: string;
+  service_id: string;
+  staff_user_id: string | null;
+  status: string;
+  scheduled_start_at: string;
+  service_name: string;
+  staff_name: string | null;
 };
 
 function addDays(date: Date, days: number) {
@@ -89,9 +99,14 @@ export default function PublicBookingPage() {
   const [error, setError] = useState("");
   const [manageMessage, setManageMessage] = useState("");
   const [manageError, setManageError] = useState("");
+  const [lookupPhone, setLookupPhone] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupAppointments, setLookupAppointments] = useState<LookupAppointment[]>([]);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState("");
   const [manageScheduledAtLocal, setManageScheduledAtLocal] = useState("");
   const [managePhone, setManagePhone] = useState("");
   const [loading, setLoading] = useState(false);
+  const confirmationRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -169,10 +184,57 @@ export default function PublicBookingPage() {
     }
 
     setMessage("Turno confirmado. Tu reserva quedó agendada.");
+    setLookupPhone(customerPhone);
     setManageScheduledAtLocal(isoToLocalDateTimeInput(data.scheduled_start_at ?? selectedSlot));
     setManagePhone(customerPhone);
+    setSelectedAppointmentId(data.appointment_id);
     setSelectedSlot("");
+    requestAnimationFrame(() => {
+      confirmationRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
     await searchSlots({ keepMessage: true });
+  }
+
+  async function lookupAppointmentsByPhone() {
+    if (!slug || !lookupPhone) return;
+    setManageError("");
+    setManageMessage("");
+    setLookupLoading(true);
+    setLookupAppointments([]);
+
+    const query = new URLSearchParams({ phone: lookupPhone });
+    const res = await fetch(`/api/v1/public/b/${slug}/appointments/by-phone?${query.toString()}`);
+    const data = (await res.json()) as { appointments?: LookupAppointment[]; error?: { message?: string } };
+    setLookupLoading(false);
+
+    if (!res.ok) {
+      setManageError(data?.error?.message ?? "No se pudieron buscar turnos.");
+      return;
+    }
+
+    const rows = data.appointments ?? [];
+    setLookupAppointments(rows);
+    if (!rows.length) {
+      setManageError("No encontramos turnos activos con ese telefono.");
+      return;
+    }
+
+    const first = rows[0];
+    setSelectedAppointmentId(first.appointment_id);
+    setManagePhone(lookupPhone);
+    setManageScheduledAtLocal(isoToLocalDateTimeInput(first.scheduled_start_at));
+    setServiceId(first.service_id);
+    setStaffId(first.staff_user_id ?? "");
+    setManageMessage("Selecciona tu turno y luego cancela o reprograma.");
+  }
+
+  function selectAppointmentForManage(appt: LookupAppointment) {
+    setSelectedAppointmentId(appt.appointment_id);
+    setManageScheduledAtLocal(isoToLocalDateTimeInput(appt.scheduled_start_at));
+    setServiceId(appt.service_id);
+    setStaffId(appt.staff_user_id ?? "");
+    setManageMessage("Turno seleccionado. Si quieres reprogramar, busca un nuevo horario y confirma.");
+    setManageError("");
   }
 
   async function manageAppointment(action: "cancel" | "reschedule") {
@@ -185,6 +247,8 @@ export default function PublicBookingPage() {
       scheduled_start_at: localDateTimeInputToIso(manageScheduledAtLocal),
       customer_phone: managePhone,
     };
+
+    if (selectedAppointmentId) payload.appointment_id = selectedAppointmentId;
 
     if (action === "reschedule") {
       if (!selectedSlot) {
@@ -208,6 +272,8 @@ export default function PublicBookingPage() {
 
     if (action === "cancel") {
       setManageMessage("Turno cancelado correctamente.");
+      setLookupAppointments((prev) => prev.filter((a) => a.appointment_id !== selectedAppointmentId));
+      setSelectedAppointmentId("");
     } else {
       setManageMessage("Turno reprogramado correctamente.");
       setManageScheduledAtLocal(isoToLocalDateTimeInput(selectedSlot));
@@ -324,14 +390,46 @@ export default function PublicBookingPage() {
           </p>
           <button type="submit" disabled={!selectedSlot || !serviceId || !customerName || !customerPhone}>Confirmar turno</button>
         </form>
+        {message ? (
+          <div className="confirmation-banner" ref={confirmationRef}>
+            <strong>Reserva confirmada</strong>
+            <p>{message}</p>
+          </div>
+        ) : null}
       </section>
 
       <section className="card surface">
         <div className="section-head">
           <h2>Gestionar turno existente</h2>
-          <small>Con el horario del turno y telefono puedes cancelar o reprogramar.</small>
+          <small>Busca por teléfono, elige tu turno y luego cancela o reprograma.</small>
         </div>
         <div className="grid-form compact">
+          <label>
+            Tu teléfono
+            <input
+              value={lookupPhone}
+              onChange={(e) => setLookupPhone(e.target.value)}
+              placeholder="+54911..."
+            />
+          </label>
+          <button type="button" onClick={() => lookupAppointmentsByPhone()} disabled={!lookupPhone || lookupLoading}>
+            {lookupLoading ? "Buscando..." : "Buscar mis turnos"}
+          </button>
+        </div>
+        <div className="manage-list">
+          {lookupAppointments.map((appt) => (
+            <button
+              type="button"
+              key={appt.appointment_id}
+              className={selectedAppointmentId === appt.appointment_id ? "slot-btn selected" : "slot-btn"}
+              onClick={() => selectAppointmentForManage(appt)}
+            >
+              <strong>{new Date(appt.scheduled_start_at).toLocaleString()}</strong>
+              <div>{appt.service_name}{appt.staff_name ? ` · ${appt.staff_name}` : ""}</div>
+            </button>
+          ))}
+        </div>
+        <div className="grid-form compact" style={{ marginTop: "0.75rem" }}>
           <label>
             Horario programado
             <input
@@ -341,7 +439,7 @@ export default function PublicBookingPage() {
             />
           </label>
           <label>
-            Telefono usado en la reserva
+            Teléfono usado en la reserva
             <input
               value={managePhone}
               onChange={(e) => setManagePhone(e.target.value)}

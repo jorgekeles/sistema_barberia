@@ -332,6 +332,38 @@ select:focus {
   font-weight: 700;
 }
 
+.confirmation-banner {
+  margin-top: 0.85rem;
+  border: 1px solid #8fd3a8;
+  background: #eefbf2;
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.confirmation-banner strong {
+  color: #0a7a39;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.confirmation-banner p {
+  margin: 0;
+}
+
+.manage-list {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 34vh;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+  margin-top: 0.7rem;
+}
+
+.manage-list .slot-btn {
+  display: grid;
+  gap: 0.18rem;
+}
+
 @media (min-width: 920px) {
   .dashboard-grid {
     grid-template-columns: 1.12fr 1fr;
@@ -404,5 +436,9 @@ select:focus {
   .upcoming-scroll,
   .summary-scroll {
     max-height: 32vh;
+  }
+
+  .manage-list {
+    max-height: 28vh;
   }
 }
