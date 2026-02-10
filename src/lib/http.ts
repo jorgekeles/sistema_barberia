@@ -10,9 +10,22 @@ export type ApiErrorCode =
   | "INTERNAL_ERROR";
 
 export function jsonOk<T>(data: T, status = 200) {
-  return NextResponse.json(data, { status });
+  return NextResponse.json(data, {
+    status,
+    headers: {
+      "cache-control": "no-store",
+    },
+  });
 }
 
 export function jsonError(code: ApiErrorCode, message: string, status: number, requestId?: string) {
-  return NextResponse.json({ error: { code, message, request_id: requestId ?? crypto.randomUUID() } }, { status });
+  return NextResponse.json(
+    { error: { code, message, request_id: requestId ?? crypto.randomUUID() } },
+    {
+      status,
+      headers: {
+        "cache-control": "no-store",
+      },
+    },
+  );
 }

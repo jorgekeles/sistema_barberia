@@ -9,6 +9,8 @@ export async function GET(req: NextRequest) {
 
   const from = req.nextUrl.searchParams.get("from") ?? new Date().toISOString();
   const to = req.nextUrl.searchParams.get("to") ?? new Date(Date.now() + 30 * 86400_000).toISOString();
+  const statusParam = req.nextUrl.searchParams.get("status");
+  const status = statusParam && ["confirmed", "canceled", "no_show"].includes(statusParam) ? statusParam : "confirmed";
 
   const result = await pool.query(
     `
@@ -30,11 +32,12 @@ export async function GET(req: NextRequest) {
       WHERE a.tenant_id = $1
       AND a.start_at >= $2::timestamptz
       AND a.start_at < $3::timestamptz
+      AND a.status = $4::appointment_status
       AND a.deleted_at IS NULL
       ORDER BY a.start_at ASC
       LIMIT 500
     `,
-    [auth.tenantId, from, to],
+    [auth.tenantId, from, to, status],
   );
 
   return jsonOk({ appointments: result.rows });
