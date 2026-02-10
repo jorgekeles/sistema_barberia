@@ -17,7 +17,11 @@ export const pool =
   global.__pgPool ??
   new Pool({
     connectionString: buildPgConnectionString(env.DATABASE_URL),
-    max: 3,
+    // Serverless-friendly pool sizing to avoid exhausting Supabase pooler clients.
+    max: 1,
+    idleTimeoutMillis: 5_000,
+    connectionTimeoutMillis: 10_000,
+    allowExitOnIdle: true,
     ssl: { rejectUnauthorized: false },
   });
 
